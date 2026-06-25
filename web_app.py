@@ -33,6 +33,7 @@ from rag_core import (
     build_rag_chain,
     query_rag,
     format_sources,
+    load_reranker,
 )
 
 from pdf_loader import (
@@ -300,8 +301,23 @@ def main():
 
                 llm = get_llm(_api_key=api_key, _temperature=temperature)
 
-                # 构建 RAG 链（本地版使用纯语义检索，高级功能见 CLI）
-                rag_chain, retriever = build_rag_chain(vectorstore, llm, top_k=top_k)
+                # 构建 RAG 链 —— 启用混合检索（BM25 + 语义）+ Reranker 精排
+                documents = split_documents(st.session_state.knowledge_text)
+                use_reranker = True
+                reranker = None
+                try:
+                    reranker = load_reranker()
+                except Exception:
+                    use_reranker = False
+
+                rag_chain, retriever = build_rag_chain(
+                    vectorstore, llm,
+                    documents=documents,
+                    top_k=top_k,
+                    use_hybrid=True,
+                    use_reranker=use_reranker,
+                    reranker=reranker,
+                )
 
                 st.session_state.rag_chain = rag_chain
                 st.session_state.retriever = retriever

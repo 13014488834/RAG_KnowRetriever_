@@ -96,11 +96,11 @@ ENV_PATH = BASE_DIR / ".env"
 CHROMA_PERSIST_DIR = str(BASE_DIR / "chroma_db")
 
 # 文档切分参数
-CHUNK_SIZE = 500
-CHUNK_OVERLAP = 50
+CHUNK_SIZE = 800
+CHUNK_OVERLAP = 200
 
 # 检索参数
-TOP_K = 3
+TOP_K = 5
 
 # 混合检索参数（BM25 + 语义）
 MERGE_TOP_K = 10     # 每路检索取多少候选用 RRF 融合
@@ -109,12 +109,12 @@ RRF_K = 60           # RRF 平滑参数（越大排名差异越小）
 # Reranker 模型
 RERANKER_MODEL = "BAAI/bge-reranker-base"
 LOCAL_RERANKER_MODEL = str(BASE_DIR / "models" / "BAAI" / "bge-reranker-base")
-RERANK_TOP_K = 3     # 精排后保留的文档数
+RERANK_TOP_K = 5     # 精排后保留的文档数
 
-# 嵌入模型 —— 三级 fallback
+# 嵌入模型 —— 三级 fallback（中文优先）
 LOCAL_EMBEDDING_MODEL = str(BASE_DIR / "models" / "iic" / "nlp_corom_sentence-embedding_chinese-base")
-PRIMARY_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-FALLBACK_EMBEDDING_MODEL = "shibing624/text2vec-base-chinese"
+PRIMARY_EMBEDDING_MODEL = "shibing624/text2vec-base-chinese"
+FALLBACK_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 # LLM 参数
 LLM_MODEL = "deepseek-chat"
@@ -169,7 +169,7 @@ def split_documents(
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
-        separators=["\n\n", "\n", "。", ".", "！", "？", "，", " ", ""],
+        separators=["\n\n", "\n", "。", "；", "：", "、", ".", "！", "？", "，", " ", ""],
         length_function=len,
         is_separator_regex=False,
     )

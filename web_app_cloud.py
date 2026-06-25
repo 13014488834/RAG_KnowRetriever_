@@ -42,9 +42,9 @@ from pdf_loader import load_pdf_from_bytes, load_text_file, merge_knowledge_sour
 # ====== 配置常量 ======
 BASE_DIR = Path(__file__).resolve().parent
 KNOWLEDGE_PATH = BASE_DIR / "knowledge.txt"
-CHUNK_SIZE = 500
-CHUNK_OVERLAP = 50
-TOP_K = 3
+CHUNK_SIZE = 800
+CHUNK_OVERLAP = 200
+TOP_K = 5
 MERGE_TOP_K = 10
 RRF_K = 60
 
@@ -68,7 +68,7 @@ RAG_PROMPT_TEMPLATE = """你是一个基于知识库的智能问答助手。请�
 
 
 # ====== RRF 融合 ======
-def rrf_fusion(results_a: list, results_b: list, k: int = 60, top_n: int = 3) -> list:
+def rrf_fusion(results_a: list, results_b: list, k: int = 60, top_n: int = 5) -> list:
     """Reciprocal Rank Fusion —— 将 BM25 和语义检索结果合并去重排序"""
     scores: dict = {}
     doc_map: dict = {}
@@ -121,7 +121,7 @@ def build_system(_docs_hash: str, _top_k: int):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
-        separators=["\n\n", "\n", "。", ".", "！", "？", "，", " ", ""],
+        separators=["\n\n", "\n", "。", "；", "：", "、", ".", "！", "？", "，", " ", ""],
         length_function=len,
         is_separator_regex=False,
     )
