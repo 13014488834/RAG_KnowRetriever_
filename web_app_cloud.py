@@ -33,7 +33,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_deepseek import ChatDeepSeek
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.retrievers import BM25Retriever
 
@@ -312,7 +312,7 @@ def main():
                     return "\n\n".join(formatted)
 
                 rag_chain = (
-                    {"context": retriever.invoke | format_docs,
+                    {"context": RunnableLambda(retriever.invoke) | format_docs,
                      "question": RunnablePassthrough()}
                     | prompt
                     | llm
