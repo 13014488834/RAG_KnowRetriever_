@@ -72,8 +72,30 @@ python rag_system.py --no-hybrid --no-reranker     # 关闭混合检索/Reranker
 
 ## 常见问题
 
-**Q: 给 HR / 面试官看，怎么用？**
-A: 发公网链接 https://aucodhdcwzwwjmucdqhxqz.streamlit.app/ ，对方直接打开即可。
+**Q: 嵌入模型下载失败？**
+A: 国内用户 `setup_models.py` 默认走 ModelScope。如果还是失败，手动设镜像：
+```bash
+set HF_ENDPOINT=https://hf-mirror.com
+python setup_models.py
+```
 
-**Q: 我的 API Key 会泄露吗？**
-A: 不会。`.env` 在 `.gitignore` 中，Web 界面每个用户自己填 Key，不存储。
+**Q: DeepSeek API 返回 401 错误？**
+A: 检查 `.env` 里的 Key 格式，应该是 `sk-` 开头，不要有多余的 `sk-` 前缀。去 https://platform.deepseek.com 重新生成一个。
+
+**Q: PDF 上传后提示"未找到可提取的文本"？**
+A: 你的 PDF 是扫描件（图片），需要先 OCR 识别。换成文字型 PDF 或直接上传 TXT。
+
+**Q: 回答和知识库内容不相关？**
+A: 可能是向量库没重建。删除 `chroma_db/` 文件夹，重新启动即可自动重建。或者用 `--rebuild` 参数。
+
+**Q: 启动报 `port 8501 already in use`？**
+A: 端口被占用了。换个端口：
+```bash
+streamlit run web_app.py --server.port 8502
+```
+
+**Q: Chroma 报错或向量库损坏？**
+A: 删掉 `chroma_db/` 文件夹重新启动，系统会自动重建向量库。
+
+**Q: Reranker 模型加载失败？**
+A: 确保 `python setup_models.py` 完整执行。如果 ModelScope 不可用，脚本会自动回退到 HuggingFace 镜像下载。
