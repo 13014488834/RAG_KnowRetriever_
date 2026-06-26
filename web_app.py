@@ -9,6 +9,8 @@ RAG 问答系统 —— Web 界面（Streamlit）
 import os
 import sys
 import hashlib
+import time
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -82,7 +84,7 @@ def get_vectorstore(_docs_hash: str, _persist_dir: str, _force_rebuild: bool):
 def init_session_state():
     """初始化 Streamlit session_state 中的默认值"""
     defaults = {
-        "messages": [],              # 聊天记录: [{"role", "content", "sources"}]
+        "messages": [],              # 聊天记录: [{"role", "content", "sources", "time"}]
         "knowledge_text": "",        # 当前知识库完整文本
         "loaded_sources": [],        # 已加载的数据源名称列表
         "rebuild_counter": 0,        # 强制重建向量库的计数器
@@ -205,6 +207,17 @@ def render_sidebar():
         st.caption(f"对话轮数: {len(st.session_state.messages) // 2}")
         st.caption(f"已加载文件: {len(st.session_state.loaded_sources)} 个")
 
+        # ---- 导出对话 ----
+        if st.session_state.messages:
+            export_text = _format_conversation_for_export(st.session_state.messages)
+            st.download_button(
+                label="📥 导出对话记录",
+                data=export_text,
+                file_name=f"RAG对话记录_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+
     return api_key, temperature, top_k, chunk_size
 
 
@@ -257,6 +270,32 @@ def handle_uploads(uploaded_files) -> None:
         st.cache_resource.clear()
         st.success(f"已加载 {len(new_names)} 个文件，正在重建向量库...")
         st.rerun()
+
+
+# ====== 导出对话 ======
+def _format_conversation_for_export(messages: list) -> str:
+    """将对话记录格式化为可导出的文本"""
+    lines = ["=" * 60]
+    lines.append("  RAG 知识库问答系统 —— 对话记录")
+    lines.append(f"  导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("=" * 60)
+    lines.append("")
+
+    for msg in messages:
+        role_label = "🧑 用户" if msg["role"] == "user" else "🤖 AI 助手"
+        time_str = f"  [{msg.get('time', '')}]" if msg.get("time") else ""
+        lines.append(f"{role_label}{time_str}:")
+        lines.append(msg["content"])
+        lines.append("")
+        if msg.get("sources"):
+            lines.append("  引用来源:")
+            for src in msg["sources"]:
+                lines.append(f"    [{src['index']}] {src['snippet']}...")
+            lines.append("")
+        lines.append("-" * 40)
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 # ====== 重建向量库 ======
@@ -341,6 +380,9 @@ def main():
     # ---- 渲染聊天记录 ----
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
+            # 显示时间戳
+            if msg.get("time"):
+                st.caption(f"🕐 {msg['time']}")
             st.markdown(msg["content"])
             if msg.get("sources"):
                 with st.expander("📖 引用来源"):
@@ -360,13 +402,21 @@ def main():
             return
 
         # 添加用户消息
+        now = datetime.now().strftime("%H:%M:%S")
         st.session_state.messages.append({
             "role": "user",
             "content": prompt,
             "sources": [],
+            "time": now,
         })
 
+        # 立即显示用户消息（不等页面刷新）
+        with st.chat_message("user"):
+            st.caption(f"🕐 {now}")
+            st.markdown(prompt)
+
         # 生成回答
+        assistant_time = datetime.now().strftime("%H:%M:%S")
         with st.chat_message("assistant"):
             with st.spinner("⏳ 正在检索并生成答案..."):
                 try:
@@ -377,6 +427,7 @@ def main():
                     )
                     sources = format_sources(docs, max_length=200)
 
+                    st.caption(f"🕐 {assistant_time}")
                     st.markdown(answer)
 
                     if sources:
@@ -388,6 +439,7 @@ def main():
                 except Exception as e:
                     answer = f"❌ 生成答案失败: {e}"
                     sources = []
+                    st.caption(f"🕐 {assistant_time}")
                     st.error(answer)
 
         # 保存助手消息
@@ -395,6 +447,7 @@ def main():
             "role": "assistant",
             "content": answer,
             "sources": sources,
+            "time": assistant_time,
         })
 
     # ---- 首次使用提示 ----

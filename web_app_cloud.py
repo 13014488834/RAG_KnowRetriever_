@@ -16,6 +16,7 @@ RAG 问答系统 —— 云端版（Streamlit Cloud 部署）
 
 import os
 import hashlib
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -173,7 +174,7 @@ def build_system(_docs_hash: str, _top_k: int):
 # ====== 会话状态初始化 ======
 def init_session_state():
     defaults = {
-        "messages": [],
+        "messages": [],              # [{"role", "content", "sources", "time"}]
         "knowledge_text": "",
         "loaded_sources": [],
         "system_ready": False,
@@ -297,6 +298,35 @@ def main():
             st.info("向量库: 等待初始化")
         st.caption(f"对话轮数: {len(st.session_state.messages) // 2}")
 
+        # ---- 导出对话 ----
+        if st.session_state.messages:
+            export_lines = ["=" * 60]
+            export_lines.append("  RAG 知识库问答系统 —— 对话记录")
+            export_lines.append(f"  导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            export_lines.append("=" * 60)
+            export_lines.append("")
+            for msg in st.session_state.messages:
+                role = "🧑 用户" if msg["role"] == "user" else "🤖 AI 助手"
+                t = f"  [{msg.get('time', '')}]" if msg.get("time") else ""
+                export_lines.append(f"{role}{t}:")
+                export_lines.append(msg["content"])
+                export_lines.append("")
+                if msg.get("sources"):
+                    export_lines.append("  引用来源:")
+                    for src in msg["sources"]:
+                        export_lines.append(f"    [{src['index']}] {src['snippet']}...")
+                    export_lines.append("")
+                export_lines.append("-" * 40)
+                export_lines.append("")
+
+            st.download_button(
+                label="📥 导出对话记录",
+                data="\n".join(export_lines),
+                file_name=f"RAG对话记录_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+
     # ---- 主区域 ----
     st.title("🤖 RAG 知识库问答")
     st.caption("云端版 · HuggingFace API 嵌入 · DeepSeek 生成 · 上传 PDF/TXT 即用")
@@ -343,6 +373,8 @@ def main():
     # ---- 聊天记录 ----
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
+            if msg.get("time"):
+                st.caption(f"🕐 {msg['time']}")
             st.markdown(msg["content"])
             if msg.get("sources"):
                 with st.expander("📖 引用来源"):
@@ -358,10 +390,19 @@ def main():
             st.error("请输入 API Key")
             return
 
+        # 添加用户消息
+        now = datetime.now().strftime("%H:%M:%S")
         st.session_state.messages.append({
-            "role": "user", "content": prompt, "sources": [],
+            "role": "user", "content": prompt, "sources": [], "time": now,
         })
 
+        # 立即显示用户消息（不等页面刷新）
+        with st.chat_message("user"):
+            st.caption(f"🕐 {now}")
+            st.markdown(prompt)
+
+        # 生成回答
+        assistant_time = datetime.now().strftime("%H:%M:%S")
         with st.chat_message("assistant"):
             with st.spinner("⏳ 检索 + 生成中..."):
                 try:
@@ -374,6 +415,7 @@ def main():
                         snippet = doc.page_content.replace("\n", " ").strip()[:200]
                         sources.append({"index": i, "snippet": snippet})
 
+                    st.caption(f"🕐 {assistant_time}")
                     st.markdown(answer)
                     if sources:
                         with st.expander("📖 引用来源"):
@@ -382,10 +424,11 @@ def main():
                 except Exception as e:
                     answer = f"❌ 失败: {e}"
                     sources = []
+                    st.caption(f"🕐 {assistant_time}")
                     st.error(answer)
 
         st.session_state.messages.append({
-            "role": "assistant", "content": answer, "sources": sources,
+            "role": "assistant", "content": answer, "sources": sources, "time": assistant_time,
         })
 
     if not st.session_state.knowledge_text:
