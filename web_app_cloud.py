@@ -14,6 +14,29 @@ RAG 问答系统 —— 云端版（Streamlit Cloud 部署）
   4. 添加 Secret: DEEPSEEK_API_KEY = sk-xxx
 """
 
+# ====== 在所有 import 之前：禁用 SSL 验证 + 设置 HuggingFace 镜像 ======
+import os as _os
+
+_os.environ["HF_HUB_DISABLE_SSL_VERIFY"] = "1"
+_os.environ["CURL_CA_BUNDLE"] = ""
+_os.environ["REQUESTS_CA_BUNDLE"] = ""
+if not _os.environ.get("HF_ENDPOINT"):
+    _os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
+import ssl as _ssl
+try:
+    _ssl._create_default_https_context = _ssl._create_unverified_context
+except AttributeError:
+    pass
+
+try:
+    import urllib3 as _urllib3
+    _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
+except Exception:
+    pass
+
+del _os, _ssl, _urllib3
+
 import os
 import hashlib
 from datetime import datetime
@@ -88,14 +111,40 @@ def rrf_fusion(results_a: list, results_b: list, k: int = 60, top_n: int = 5) ->
 
 
 # ====== 缓存资源（Streamlit Cloud 使用 @st.cache_resource）======
+def _configure_hf_client_ssl() -> None:
+    """配置 huggingface_hub HTTP 客户端，禁用 SSL 证书验证，避免客户端连接被关闭"""
+    try:
+        import httpx
+        from huggingface_hub import set_client_factory, close_session
+
+        close_session()
+
+        def _create_insecure_client() -> httpx.Client:
+            return httpx.Client(verify=False)
+
+        set_client_factory(_create_insecure_client)
+    except Exception:
+        pass
+
+
 @st.cache_resource
 def get_embeddings():
     """缓存嵌入模型（首次启动自动下载 ~80MB，之后秒加载）"""
-    return HuggingFaceEmbeddings(
-        model_name=EMBEDDING_MODEL,
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True},
-    )
+    _configure_hf_client_ssl()
+    try:
+        return HuggingFaceEmbeddings(
+            model_name=EMBEDDING_MODEL,
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True},
+        )
+    except Exception:
+        # Fallback: 如果主模型下载失败，尝试轻量备用模型
+        _configure_hf_client_ssl()
+        return HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True},
+        )
 
 
 @st.cache_resource
