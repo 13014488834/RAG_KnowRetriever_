@@ -272,6 +272,17 @@ def rebuild_vectorstore(chunk_size: int = 500) -> None:
 def main():
     init_session_state()
 
+    # 自动加载 knowledge.txt（首次打开无需上传文件）
+    if not st.session_state.knowledge_text and KNOWLEDGE_PATH.exists():
+        try:
+            from pdf_loader import load_text_file
+            text = load_text_file(KNOWLEDGE_PATH)
+            if text.strip():
+                st.session_state.knowledge_text = text
+        except Exception:
+            pass
+
+
     # ---- 侧边栏 ----
     api_key, temperature, top_k, chunk_size = render_sidebar()
 

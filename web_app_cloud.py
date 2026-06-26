@@ -229,6 +229,16 @@ def handle_uploads(uploaded_files) -> None:
 def main():
     init_session_state()
 
+    # 自动加载 knowledge.txt（首次打开无需上传文件）
+    if not st.session_state.knowledge_text and KNOWLEDGE_PATH.exists():
+        try:
+            from pdf_loader import load_text_file
+            text = load_text_file(KNOWLEDGE_PATH)
+            if text.strip():
+                st.session_state.knowledge_text = text
+        except Exception:
+            pass
+
     # ---- 侧边栏 ----
     with st.sidebar:
         st.header("📁 知识源")
@@ -242,7 +252,10 @@ def main():
 
         st.caption("已加载:")
         if KNOWLEDGE_PATH.exists():
-            st.caption("  📄 knowledge.txt")
+            if KNOWLEDGE_PATH.exists():
+                with open(KNOWLEDGE_PATH) as f:
+                    if f.read().strip():
+                        st.caption("  📄 knowledge.txt")
         for name in st.session_state.loaded_sources:
             st.caption(f"  📄 {name}")
 
@@ -376,7 +389,7 @@ def main():
         })
 
     if not st.session_state.knowledge_text:
-        st.info("👋 上传 PDF 或 TXT 文件开始吧！系统会自动加载 knowledge.txt。")
+        st.info("👋 上传 PDF 或 TXT 文件开始吧！在 knowledge.txt 中写入你的知识内容，或直接上传文件。")
 
 
 if __name__ == "__main__":
