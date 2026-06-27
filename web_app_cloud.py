@@ -14,29 +14,6 @@ RAG 问答系统 —— 云端版（Streamlit Cloud 部署）
   4. 添加 Secret: DEEPSEEK_API_KEY = sk-xxx
 """
 
-# ====== 在所有 import 之前：禁用 SSL 验证 + 设置 HuggingFace 镜像 ======
-import os as _os
-
-_os.environ["HF_HUB_DISABLE_SSL_VERIFY"] = "1"
-_os.environ["CURL_CA_BUNDLE"] = ""
-_os.environ["REQUESTS_CA_BUNDLE"] = ""
-# Cloud 部署运行在美国服务器，必须使用 HuggingFace 官方端点
-_os.environ["HF_ENDPOINT"] = "https://huggingface.co"
-
-import ssl as _ssl
-try:
-    _ssl._create_default_https_context = _ssl._create_unverified_context
-except AttributeError:
-    pass
-
-try:
-    import urllib3 as _urllib3
-    _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
-except Exception:
-    pass
-
-del _os, _ssl, _urllib3
-
 import os
 import hashlib
 from datetime import datetime
@@ -53,7 +30,7 @@ st.set_page_config(
 
 # ====== 核心模块（复用本地版的 pdf_loader 和检索逻辑）======
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_chroma import Chroma
 from langchain_deepseek import ChatDeepSeek
 from langchain_core.prompts import ChatPromptTemplate
@@ -72,7 +49,7 @@ TOP_K = 5
 MERGE_TOP_K = 10
 RRF_K = 60
 
-# 嵌入模型（中英文都支持，约 120MB，首次启动自动下载）
+# 嵌入模型 —— 使用 HuggingFace 免费推理 API（不下载本地模型，内存占用几乎为零）
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 # LLM 参数
@@ -111,40 +88,14 @@ def rrf_fusion(results_a: list, results_b: list, k: int = 60, top_n: int = 5) ->
 
 
 # ====== 缓存资源（Streamlit Cloud 使用 @st.cache_resource）======
-def _configure_hf_client_ssl() -> None:
-    """配置 huggingface_hub HTTP 客户端，禁用 SSL 证书验证，避免客户端连接被关闭"""
-    try:
-        import httpx
-        from huggingface_hub import set_client_factory, close_session
-
-        close_session()
-
-        def _create_insecure_client() -> httpx.Client:
-            return httpx.Client(verify=False)
-
-        set_client_factory(_create_insecure_client)
-    except Exception:
-        pass
-
-
 @st.cache_resource
 def get_embeddings():
-    """缓存嵌入模型（首次启动自动下载 ~80MB，之后秒加载）"""
-    _configure_hf_client_ssl()
-    try:
-        return HuggingFaceEmbeddings(
-            model_name=EMBEDDING_MODEL,
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
-        )
-    except Exception:
-        # Fallback: 如果主模型下载失败，尝试轻量备用模型
-        _configure_hf_client_ssl()
-        return HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
-        )
+    """使用 HuggingFace 免费推理 API 做嵌入，不下载任何本地模型，内存占用几乎为零"""
+    return HuggingFaceEndpointEmbeddings(
+        model=EMBEDDING_MODEL,
+        task="feature-extraction",
+        model_kwargs={"timeout": 30},
+    )
 
 
 @st.cache_resource
