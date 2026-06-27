@@ -30,7 +30,7 @@ st.set_page_config(
 
 # ====== 核心模块（复用本地版的 pdf_loader 和检索逻辑）======
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEndpointEmbeddings
+from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
 from langchain_chroma import Chroma
 from langchain_deepseek import ChatDeepSeek
 from langchain_core.prompts import ChatPromptTemplate
@@ -90,11 +90,18 @@ def rrf_fusion(results_a: list, results_b: list, k: int = 60, top_n: int = 5) ->
 # ====== 缓存资源（Streamlit Cloud 使用 @st.cache_resource）======
 @st.cache_resource
 def get_embeddings():
-    """使用 HuggingFace 免费推理 API 做嵌入，不下载任何本地模型，内存占用几乎为零"""
-    return HuggingFaceEndpointEmbeddings(
-        model=EMBEDDING_MODEL,
-        task="feature-extraction",
-        model_kwargs={"timeout": 30},
+    """使用 HuggingFace 免费推理 API 做嵌入，不下载本地模型，内存占用几乎为零"""
+    # 优先从 Streamlit Secrets / 环境变量读取 HF Token
+    api_key = ""
+    try:
+        api_key = st.secrets.get("HF_TOKEN", "")
+    except Exception:
+        pass
+    if not api_key:
+        api_key = os.getenv("HF_TOKEN", "") or os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
+    return HuggingFaceInferenceAPIEmbeddings(
+        api_key=api_key,
+        model_name=EMBEDDING_MODEL,
     )
 
 
