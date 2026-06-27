@@ -130,26 +130,6 @@ def init_session_state():
             st.session_state[key] = value
 
 
-# ====== 启动时自动加载 knowledge.txt ======
-def auto_load_knowledge_txt() -> bool:
-    """应用启动时自动加载 knowledge.txt，无需用户手动上传。
-    返回 True 表示加载了新内容，需要重建向量库。"""
-    if KNOWLEDGE_PATH.exists():
-        try:
-            dt = load_text_file(KNOWLEDGE_PATH)
-            if dt.strip():
-                current = st.session_state.get("knowledge_text", "")
-                if dt not in current:  # 避免重复加载
-                    if current:
-                        st.session_state.knowledge_text = merge_knowledge_sources(dt, current)
-                    else:
-                        st.session_state.knowledge_text = dt
-                    return True
-        except Exception:
-            pass
-    return False
-
-
 # ====== 上传处理 ======
 def handle_uploads(uploaded_files) -> None:
     new_texts = []
@@ -196,14 +176,18 @@ def main():
     init_session_state()
 
     # 自动加载 knowledge.txt（首次打开无需上传文件）
-    if not st.session_state.knowledge_text and KNOWLEDGE_PATH.exists():
-        try:
-            from pdf_loader import load_text_file
-            text = load_text_file(KNOWLEDGE_PATH)
-            if text.strip():
-                st.session_state.knowledge_text = text
-        except Exception:
-            pass
+    if not st.session_state.knowledge_text:
+        if KNOWLEDGE_PATH.exists():
+            try:
+                text = load_text_file(KNOWLEDGE_PATH)
+                if text.strip():
+                    st.session_state.knowledge_text = text
+                else:
+                    st.warning("knowledge.txt 存在但内容为空")
+            except Exception as e:
+                st.error(f"加载 knowledge.txt 失败: {e}")
+        else:
+            st.warning(f"knowledge.txt 未找到: {KNOWLEDGE_PATH}")
 
     # ---- 侧边栏 ----
     with st.sidebar:
@@ -218,11 +202,17 @@ def main():
 
         st.caption("已加载:")
         if KNOWLEDGE_PATH.exists():
-            if KNOWLEDGE_PATH.exists():
+            try:
                 with open(KNOWLEDGE_PATH, encoding="utf-8") as f:
                     content = f.read().strip()
                     if content:
                         st.caption(f"  📄 knowledge.txt ({len(content)} 字符)")
+                    else:
+                        st.caption("  ⚠️ knowledge.txt 为空")
+            except Exception:
+                st.caption("  ❌ knowledge.txt 读取失败")
+        else:
+            st.caption("  ❌ knowledge.txt 不存在")
         for name in st.session_state.loaded_sources:
             st.caption(f"  📄 {name}")
         if st.session_state.knowledge_text:
