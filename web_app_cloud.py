@@ -72,8 +72,8 @@ TOP_K = 5
 MERGE_TOP_K = 10
 RRF_K = 60
 
-# 嵌入模型（中英文都支持，约 120MB，首次启动自动下载）
-EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# 嵌入模型 —— BGE 中文优化模型（~100MB），检索精度远超多语言通用模型
+EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
 
 # LLM 参数
 LLM_MODEL = "deepseek-chat"
@@ -138,10 +138,10 @@ def get_embeddings():
             encode_kwargs={"normalize_embeddings": True},
         )
     except Exception:
-        # Fallback: 如果主模型下载失败，尝试轻量备用模型
+        # Fallback: BGE 下载失败 → 尝试多语言模型（同样支持中文）
         _configure_hf_client_ssl()
         return HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
             model_kwargs={"device": "cpu"},
             encode_kwargs={"normalize_embeddings": True},
         )
@@ -328,7 +328,7 @@ def main():
         )
 
         temperature = st.slider("Temperature", 0.0, 1.0, 0.1, 0.05)
-        top_k = st.slider("Top-K", 1, 10, 3)
+        top_k = st.slider("Top-K", 1, 10, 5)
 
         st.divider()
         if st.button("🔄 重建向量库", use_container_width=True):
