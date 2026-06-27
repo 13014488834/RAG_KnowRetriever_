@@ -42,6 +42,9 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 
+# Cloud 部署运行在美国服务器，必须使用 HuggingFace 官方端点，不能用国内镜像
+os.environ["HF_ENDPOINT"] = "https://huggingface.co"
+
 import streamlit as st
 
 st.set_page_config(
